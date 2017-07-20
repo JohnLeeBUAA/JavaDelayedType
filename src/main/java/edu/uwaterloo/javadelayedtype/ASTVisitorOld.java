@@ -4,7 +4,7 @@ import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 
-public class ASTVisitor extends VoidVisitorAdapter<Analyzer> {
+public class ASTVisitorOld extends VoidVisitorAdapter<Analyzer> {
 	@Override
 	public void visit(MethodDeclaration n, Analyzer analyzer) {
 		analyzer.increaseVal();
