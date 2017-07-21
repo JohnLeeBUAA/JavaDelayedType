@@ -11,6 +11,7 @@ class Node {
 
 public class Main {
 	public static void main(String[] args) {
+		n1.next.prev;
 		n1.getNext(n2);
 		n1 = n2;
 	}
