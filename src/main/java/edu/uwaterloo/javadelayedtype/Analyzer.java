@@ -40,6 +40,7 @@ import com.github.javaparser.ast.expr.ClassExpr;
 import com.github.javaparser.ast.expr.ConditionalExpr;
 import com.github.javaparser.ast.expr.DoubleLiteralExpr;
 import com.github.javaparser.ast.expr.EnclosedExpr;
+import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.InstanceOfExpr;
 import com.github.javaparser.ast.expr.IntegerLiteralExpr;
@@ -111,12 +112,64 @@ public class Analyzer {
     this.tracker = new Tracker(srcPath);
   }
 
+  // TODO: delete this
+  public static void main(String[] args) throws IOException {
+    String srcPath = "examples/test1.java";
+    Analyzer analyzer = new Analyzer(srcPath);
+    analyzer.analyze();
+  }
+
+  /**
+   * Entrance method
+   */
   public void analyze() {
+    addClassAndFieldDefs();
     parseMethod(getMainBody());
   }
 
-  public BlockStmt getMainBody() {
+  /**
+   * Add class and field definitions to Tracker
+   */
+  private void addClassAndFieldDefs() {
     NodeList<TypeDeclaration<?>> types = compilationUnit.getTypes();
+
+    // add all user-defined class definitions
+    for (TypeDeclaration<?> type : types) {
+      if (type instanceof ClassOrInterfaceDeclaration) {
+        ClassOrInterfaceDeclaration clazz = (ClassOrInterfaceDeclaration) type;
+        if (!this.tracker.addClassDef(clazz.getNameAsString())) {
+          this.tracker.reporter.report(clazz.getBegin().get().line, clazz.getBegin().get().column,
+              clazz.getNameAsString());
+        }
+      }
+    }
+
+    // add field definitions
+    for (TypeDeclaration<?> type : types) {
+      if (type instanceof ClassOrInterfaceDeclaration) {
+        ClassOrInterfaceDeclaration clazz = (ClassOrInterfaceDeclaration) type;
+        for (FieldDeclaration field : clazz.getFields()) {
+          String fieldType = field.getElementType().toString();
+          for (VariableDeclarator variable : field.getVariables()) {
+            if (!this.tracker.addFieldDef(clazz.getNameAsString(), variable.getNameAsString(),
+                fieldType)) {
+              this.tracker.reporter.report(variable.getBegin().get().line,
+                  variable.getBegin().get().column, variable.getNameAsString());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Get the body for main method
+   * 
+   * @return
+   */
+  private BlockStmt getMainBody() {
+    NodeList<TypeDeclaration<?>> types = compilationUnit.getTypes();
+
     for (TypeDeclaration<?> type : types) {
       NodeList<BodyDeclaration<?>> members = type.getMembers();
       for (BodyDeclaration<?> member : members) {
@@ -131,25 +184,40 @@ public class Analyzer {
     return null;
   }
 
-  public BlockStmt getMethodBody(String className, String methodName) {
-    ClassOrInterfaceDeclaration clazz = compilationUnit.getClassByName(className).get();
-    MethodDeclaration method = clazz.getMethodsByName(methodName).get(0);
-    return method.getBody().get();
+  // private BlockStmt getMethodBody(String className, String methodName) {
+  // ClassOrInterfaceDeclaration clazz = compilationUnit.getClassByName(className).get();
+  // MethodDeclaration method = clazz.getMethodsByName(methodName).get(0);
+  // return method.getBody().get();
+  // }
+
+  private void parseMethod(BlockStmt blockStmt) {
+    if (blockStmt != null) {
+      this.tracker.callEntrance();
+      // TODO: add things to latest alias map
+      ASTVisitor visitor = new ASTVisitor();
+      visitor.visit(blockStmt, this.tracker);
+      this.tracker.callExit();
+    }
   }
 
-  public void parseMethod(BlockStmt blockStmt) {
-    ASTVisitor visitor = new ASTVisitor();
-    visitor.visit(blockStmt, this.tracker);
-  }
-
+  /**
+   * A private visitor class to parse AST
+   */
   private class ASTVisitor implements VoidVisitor<Tracker> {
+    /**
+     * Print out node info for debugging purpose
+     * 
+     * @param n
+     * @param indentLevel
+     * @param info
+     */
     public void printNode(Node n, int indentLevel, String info) {
       System.out.println(
           StringUtils.repeat('\t', indentLevel) + n.getClass().getSimpleName() + ": " + info);
     }
 
     @Override
-    public void visit(NodeList n, Tracker arg) {
+    public void visit(@SuppressWarnings("rawtypes") NodeList n, Tracker arg) {
 
     }
 
@@ -275,7 +343,7 @@ public class Analyzer {
 
     @Override
     public void visit(ClassOrInterfaceType n, Tracker arg) {
-      printNode(n, arg.indentLevel, "");
+      printNode(n, arg.indentLevel, n.getNameAsString());
 
     }
 
@@ -360,7 +428,6 @@ public class Analyzer {
       n.getScope().accept(this, arg);
       n.getName().accept(this, arg);
       arg.indentLevel--;
-      System.out.println("Current Object: " + arg.curObj);
     }
 
     @Override
@@ -486,7 +553,6 @@ public class Analyzer {
     @Override
     public void visit(NameExpr n, Tracker arg) {
       printNode(n, arg.indentLevel, n.getNameAsString());
-      arg.accessObj(n.getNameAsString());
     }
 
     @Override
@@ -509,8 +575,18 @@ public class Analyzer {
 
     @Override
     public void visit(ObjectCreationExpr n, Tracker arg) {
-      printNode(n, arg.indentLevel, "");
-
+      printNode(n, arg.indentLevel, n.toString());
+      arg.indentLevel++;
+      n.getScope().ifPresent(s -> s.accept(this, arg));
+      n.getTypeArguments().ifPresent(tas -> tas.forEach(ta -> ta.accept(this, arg)));
+      n.getType().accept(this, arg);
+      if (n.getArguments() != null) {
+        for (final Expression e : n.getArguments()) {
+          e.accept(this, arg);
+        }
+      }
+      n.getAnonymousClassBody().ifPresent(acb -> acb.forEach(m -> m.accept(this, arg)));
+      arg.indentLevel--;
     }
 
     @Override
@@ -540,7 +616,6 @@ public class Analyzer {
     @Override
     public void visit(SimpleName n, Tracker arg) {
       printNode(n, arg.indentLevel, n.getIdentifier());
-      arg.accessField(n.getIdentifier());
     }
 
     @Override
@@ -629,14 +704,28 @@ public class Analyzer {
 
     @Override
     public void visit(VariableDeclarationExpr n, Tracker arg) {
-      printNode(n, arg.indentLevel, "");
-
+      printNode(n, arg.indentLevel, n.toString());
+      arg.indentLevel++;
+      for (final VariableDeclarator v : n.getVariables()) {
+        v.accept(this, arg);
+      }
+      arg.indentLevel--;
     }
 
     @Override
     public void visit(VariableDeclarator n, Tracker arg) {
-      printNode(n, arg.indentLevel, "");
-
+      printNode(n, arg.indentLevel, n.toString());
+      String varName = n.getNameAsString();
+      String varType = n.getType().asString();
+      arg.temp = "";
+      arg.indentLevel++;
+      n.getInitializer().ifPresent(i -> i.accept(this, arg));
+      arg.indentLevel--;
+      String refId = arg.temp;
+      if (!arg.addVar(varName, varType, refId)) {
+        arg.reporter.report(n.getBegin().get().line, n.getBegin().get().column,
+            n.getNameAsString());
+      }
     }
 
     @Override
