@@ -80,6 +80,8 @@ public class State {
 
   /**
    * Create an object
+   * 
+   * @param className
    */
   public void createObject(String className) {
     Obj obj = new Obj(Tracker.classDefMap.get(className));
@@ -89,9 +91,31 @@ public class State {
 
   /**
    * Create a variable
+   * 
+   * @param varName
+   * @param varType
    */
   public void createVariable(String varName, String varType) {
     Var var = new Var(varName, varType, this.accessPoint);
     this.varTable.peek().peek().put(varName, var);
+  }
+
+  /**
+   * Access a variable
+   * 
+   * @param varName
+   */
+  public void accessVariable(String varName) {
+    Var var = this.varTable.peek().peek().get(varName);
+    if (Tracker.assignTargetMode) {
+      this.assignPoint = var;
+    } else {
+      String objId = var.objId;
+      if (objId.equals("")) {
+        this.accessPoint = null;
+      } else {
+        this.accessPoint = this.objTable.get(objId);
+      }
+    }
   }
 }
