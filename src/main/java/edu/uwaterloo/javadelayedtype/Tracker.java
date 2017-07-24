@@ -232,7 +232,7 @@ public class Tracker {
    * @param varName
    */
   public void accessVariable(String varName) {
-    if (this.state.varTable.peek().peek().containsKey(varName)) {
+    if (this.state.loopUpVariable(varName) != null) {
       Tracker.checkerOn = true;
 
       Queue<State> stateQueue = new LinkedList<>();
@@ -287,6 +287,23 @@ public class Tracker {
       }
       if (tempState.isValid) {
         tempState.accessNull();
+      }
+    }
+  }
+  
+  /**
+   * Assign Obj to Var or Ref
+   */
+  public void assign() {
+    Queue<State> stateQueue = new LinkedList<>();
+    stateQueue.add(this.state);
+    while (!stateQueue.isEmpty()) {
+      State tempState = stateQueue.poll();
+      for (State state : tempState.childStateList) {
+        stateQueue.add(state);
+      }
+      if (tempState.isValid) {
+        tempState.assign();
       }
     }
   }

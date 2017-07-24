@@ -40,7 +40,6 @@ import com.github.javaparser.ast.expr.ClassExpr;
 import com.github.javaparser.ast.expr.ConditionalExpr;
 import com.github.javaparser.ast.expr.DoubleLiteralExpr;
 import com.github.javaparser.ast.expr.EnclosedExpr;
-import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.InstanceOfExpr;
 import com.github.javaparser.ast.expr.IntegerLiteralExpr;
@@ -280,6 +279,7 @@ public class Analyzer {
       n.getValue().accept(this, arg);
       Tracker.mode = 1;
       n.getTarget().accept(this, arg);
+      arg.assign();
       arg.indentLevel--;
     }
 
@@ -584,7 +584,7 @@ public class Analyzer {
     @Override
     public void visit(NullLiteralExpr n, Tracker arg) {
       printNode(n, arg.indentLevel, "");
-
+      arg.accessNull();
     }
 
     @Override

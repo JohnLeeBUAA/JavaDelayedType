@@ -1,10 +1,17 @@
 package edu.uwaterloo.javadelayedtype;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Stack;
+import java.util.Map.Entry;
+import java.util.Queue;
+import java.util.Set;
 
 /**
  * This class stores a single possible state of a program
@@ -17,7 +24,7 @@ public class State {
   public boolean isValid; // indicate whether this state is valid
   public State parent; // the state from which this state is derived from
   public List<State> childStateList; // states derive form this state
-  public Stack<Stack<Map<String, Var>>> varTable; // a stack of stack of variable tables
+  public Deque<Deque<Map<String, Var>>> varTable; // a stack of stack of variable tables
   public Map<String, Obj> objTable; // a table for all objects
 
   public State() {
@@ -27,7 +34,7 @@ public class State {
     this.isValid = true;
     this.parent = null;
     this.childStateList = new ArrayList<State>();
-    this.varTable = new Stack<Stack<Map<String, Var>>>();
+    this.varTable = new ArrayDeque<Deque<Map<String, Var>>>();
     this.objTable = new HashMap<String, Obj>();
   }
 
@@ -35,7 +42,7 @@ public class State {
    * When entering a method, push a new variable stack
    */
   public void methodEntrance() {
-    Stack<Map<String, Var>> tempVarStack = new Stack<>();
+    Deque<Map<String, Var>> tempVarStack = new ArrayDeque<>();
     this.varTable.push(tempVarStack);
   }
 
@@ -43,11 +50,7 @@ public class State {
    * When exiting a method, pop the current variable stack
    */
   public void methodExit() {
-    Stack<Map<String, Var>> tempVarStack = this.varTable.pop();
-    // TODO: delete this
-    if (tempVarStack.size() != 0) {
-      System.out.println("variable table count is not zero when exiting a method");
-    }
+    this.varTable.pop();
   }
 
   /**
@@ -63,7 +66,10 @@ public class State {
    */
   public void blockExit() {
     Map<String, Var> tempVarTable = this.varTable.peek().pop();
-    // TODO: delete all variables in tempVarTable
+    for (Entry<String, Var> entry : tempVarTable.entrySet()) {
+      removeRefCt(entry.getValue().objId);
+    }
+    update();
   }
 
   /**
@@ -110,12 +116,30 @@ public class State {
   }
 
   /**
+   * Look up a variable by name in current call stack
+   * 
+   * @param varName
+   * @return
+   */
+  public Var loopUpVariable(String varName) {
+    Deque<Map<String, Var>> varStack = this.varTable.peek();
+    Iterator<Map<String, Var>> iterator = varStack.iterator();
+    while (iterator.hasNext()) {
+      Map<String, Var> map = iterator.next();
+      if (map.containsKey(varName)) {
+        return map.get(varName);
+      }
+    }
+    return null;
+  }
+
+  /**
    * Access a variable
    * 
    * @param varName
    */
   public void accessVariable(String varName) {
-    Var var = this.varTable.peek().peek().get(varName);
+    Var var = loopUpVariable(varName);
     switch (Tracker.mode) {
       case 0: {
         String objId = var.objId;
@@ -225,5 +249,193 @@ public class State {
         this.argumentPoint.add(null);
       }
     }
+  }
+
+  /**
+   * Assign Obj to Var or Ref
+   */
+  public void assign() {
+    if (this.assignPoint != null) {
+      String oldObjId = "";
+      if (this.assignPoint instanceof Var) {
+        Var temp = ((Var) this.assignPoint);
+        oldObjId = temp.objId;
+        if (this.accessPoint != null) {
+          temp.objId = this.accessPoint.id;
+          this.accessPoint.refCt++;
+        } else {
+          temp.objId = "";
+        }
+      } else if (this.assignPoint instanceof Ref) {
+        Ref temp = ((Ref) this.assignPoint);
+        oldObjId = temp.objId;
+        if (this.accessPoint != null) {
+          temp.objId = this.accessPoint.id;
+          this.accessPoint.refCt++;
+        } else {
+          temp.objId = "";
+        }
+      }
+      removeRefCt(oldObjId);
+      update();
+    }
+  }
+
+  /**
+   * Remove one reference count from an object, perform garbage collect if necessary
+   * 
+   * @param objId
+   */
+  public void removeRefCt(String objId) {
+    if (this.objTable.containsKey(objId)) {
+      Obj obj = this.objTable.get(objId);
+      obj.refCt--;
+      if (obj.refCt == 0) {
+        this.objTable.remove(objId);
+        for (Entry<String, Ref> entry : obj.fields.entrySet()) {
+          removeRefCt(entry.getValue().objId);
+        }
+      }
+    }
+  }
+
+  /**
+   * Update the state of all delayed type after reference change. Edge counting is performed here.
+   */
+  public void update() {
+    // partition the graph by delayed type connectivity
+    // resulting in a list of set of objects
+    // no delayed type pointers between any two sets
+    List<Set<Obj>> partitions = new ArrayList<>();
+    for (Entry<String, Obj> objEntry : this.objTable.entrySet()) {
+      Obj curObj = objEntry.getValue();
+      boolean visited = false;
+      for (Set<Obj> partition : partitions) {
+        if (partition.contains(curObj)) {
+          visited = true;
+          break;
+        }
+      }
+
+      if (!visited) {
+        Set<Obj> newPartition = new HashSet<>();
+        Queue<Obj> objQueue = new LinkedList<>();
+        objQueue.add(curObj);
+        while (!objQueue.isEmpty()) {
+          Obj temp = objQueue.poll();
+          newPartition.add(temp);
+          for (Entry<String, Ref> refEntry : temp.fields.entrySet()) {
+            Obj toVisit = this.objTable.get(refEntry.getValue().objId);
+            if (toVisit == null || newPartition.contains(toVisit)) {
+              continue;
+            } else {
+              boolean inOldPartitions = false;
+              for (Set<Obj> partition : partitions) {
+                if (partition.contains(toVisit)) {
+                  inOldPartitions = true;
+                  newPartition.addAll(partition);
+                  partitions.remove(partition);
+                  break;
+                }
+              }
+              if (!inOldPartitions) {
+                objQueue.add(toVisit);
+              }
+            }
+          }
+        }
+        partitions.add(newPartition);
+      }
+    }
+
+    // for each partition, perform edge counting
+    for (Set<Obj> partition : partitions) {
+      Map<String, Set<String>> missingDelayedFields = new HashMap<>();
+      Iterator<Obj> iterator = partition.iterator();
+      while (iterator.hasNext()) {
+        Obj tempObj = iterator.next();
+        String fromType = tempObj.type;
+        for (Entry<String, Ref> refEntry : tempObj.fields.entrySet()) {
+          Ref tempRef = refEntry.getValue();
+          if (tempRef.isDelayedType && tempRef.objId.equals("")) {
+            String toType = tempRef.type;
+            if (!missingDelayedFields.containsKey(fromType)) {
+              Set<String> tempSet = new HashSet<>();
+              missingDelayedFields.put(fromType, tempSet);
+            }
+            missingDelayedFields.get(fromType).add(toType);
+
+            System.out
+                .println("\n#####\nAdding missing type from: " + fromType + "  to: " + toType);
+
+          }
+        }
+      }
+
+      // update all delayed type references
+      Iterator<Obj> i = partition.iterator();
+      while (i.hasNext()) {
+        Obj tempObj = i.next();
+        String fromType = tempObj.type;
+        for (Entry<String, Ref> refEntry : tempObj.fields.entrySet()) {
+          Ref tempRef = refEntry.getValue();
+          if (tempRef.isDelayedType) {
+            String toType = tempRef.type;
+            if (missingDelayedFields.containsKey(fromType)
+                && missingDelayedFields.get(fromType).contains(toType)) {
+              tempRef.isCompleted = false;
+
+
+            } else {
+              tempRef.isCompleted = true;
+            }
+
+
+            System.out.println("\n#####\nSetting " + tempObj.id + " " + tempRef.type + " to "
+                + tempRef.isCompleted);
+          }
+        }
+      }
+    }
+  }
+
+  // TODO: delete this
+  public static void main(String[] args) {
+    State state = new State();
+
+    ClassDef classDefA = new ClassDef("A");
+    classDefA.fieldDefs.put("delayed_A", new FieldDef("delayed_A", "A", true));
+    classDefA.fieldDefs.put("delayed_B", new FieldDef("delayed_B", "B", true));
+
+    ClassDef classDefB = new ClassDef("B");
+    classDefB.fieldDefs.put("delayed_B", new FieldDef("delayed_B", "B", true));
+
+    Obj A1 = new Obj(classDefA);
+    A1.id = "A1";
+    Obj A2 = new Obj(classDefA);
+    A2.id = "A2";
+    Obj A3 = new Obj(classDefA);
+    A3.id = "A3";
+    Obj B1 = new Obj(classDefB);
+    B1.id = "B1";
+    Obj B2 = new Obj(classDefB);
+    B2.id = "B2";
+
+    A1.fields.get("delayed_A").objId = A2.id;
+    A1.fields.get("delayed_B").objId = B1.id;
+    A2.fields.get("delayed_A").objId = A3.id;
+    A2.fields.get("delayed_B").objId = B1.id;
+    A3.fields.get("delayed_A").objId = A2.id;
+    A3.fields.get("delayed_B").objId = B2.id;
+    B1.fields.get("delayed_B").objId = B2.id;
+    B2.fields.get("delayed_B").objId = B1.id;
+
+    state.objTable.put(A1.id, A1);
+    state.objTable.put(A2.id, A2);
+    state.objTable.put(A3.id, A3);
+    state.objTable.put(B1.id, B1);
+    state.objTable.put(B2.id, B2);
+
+    state.update();
   }
 }
