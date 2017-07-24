@@ -103,18 +103,22 @@ import com.github.javaparser.ast.type.VoidType;
 import com.github.javaparser.ast.type.WildcardType;
 import com.github.javaparser.ast.visitor.VoidVisitor;
 
+/**
+ * This class uses JaraParser to parse source code and use API from Tracker to analyze delayed type
+ */
 public class Analyzer {
   private CompilationUnit compilationUnit;
   private Tracker tracker;
 
   public Analyzer(String srcPath) throws IOException {
     this.compilationUnit = JavaParser.parse(new FileInputStream(srcPath));
-    this.tracker = new Tracker(srcPath);
+    this.tracker = new Tracker();
   }
 
   // TODO: delete this
   public static void main(String[] args) throws IOException {
     String srcPath = "examples/test1.java";
+    Reporter.initialize(srcPath);
     Analyzer analyzer = new Analyzer(srcPath);
     analyzer.analyze();
   }
@@ -124,7 +128,7 @@ public class Analyzer {
    */
   public void analyze() {
     addClassAndFieldDefs();
-    parseMethod(getMainBody());
+    parseMethod(getMainMethod());
   }
 
   /**
@@ -137,10 +141,7 @@ public class Analyzer {
     for (TypeDeclaration<?> type : types) {
       if (type instanceof ClassOrInterfaceDeclaration) {
         ClassOrInterfaceDeclaration clazz = (ClassOrInterfaceDeclaration) type;
-        if (!this.tracker.addClassDef(clazz.getNameAsString())) {
-          this.tracker.reporter.report(clazz.getBegin().get().line, clazz.getBegin().get().column,
-              clazz.getNameAsString());
-        }
+        this.tracker.addClassDef(clazz.getNameAsString());
       }
     }
 
@@ -151,11 +152,8 @@ public class Analyzer {
         for (FieldDeclaration field : clazz.getFields()) {
           String fieldType = field.getElementType().toString();
           for (VariableDeclarator variable : field.getVariables()) {
-            if (!this.tracker.addFieldDef(clazz.getNameAsString(), variable.getNameAsString(),
-                fieldType)) {
-              this.tracker.reporter.report(variable.getBegin().get().line,
-                  variable.getBegin().get().column, variable.getNameAsString());
-            }
+            this.tracker.addFieldDef(clazz.getNameAsString(), variable.getNameAsString(),
+                fieldType);
           }
         }
       }
@@ -163,11 +161,11 @@ public class Analyzer {
   }
 
   /**
-   * Get the body for main method
+   * Get the method declaration of main method
    * 
-   * @return
+   * @return MethodDeclaration of main method
    */
-  private BlockStmt getMainBody() {
+  private MethodDeclaration getMainMethod() {
     NodeList<TypeDeclaration<?>> types = compilationUnit.getTypes();
 
     for (TypeDeclaration<?> type : types) {
@@ -176,12 +174,27 @@ public class Analyzer {
         if (member instanceof MethodDeclaration) {
           MethodDeclaration method = (MethodDeclaration) member;
           if (method.getName().toString().equals("main")) {
-            return method.getBody().get();
+            return method;
           }
         }
       }
     }
     return null;
+  }
+
+  /**
+   * Parse a method
+   * 
+   * @param method Declaration of the method
+   */
+  private void parseMethod(MethodDeclaration method) {
+    if (method.getBody().get() != null) {
+      this.tracker.methodEntrance();
+      // TODO: add method arguments to variable table
+      ASTVisitor visitor = new ASTVisitor();
+      visitor.visit(method.getBody().get(), this.tracker);
+      this.tracker.methodExit();
+    }
   }
 
   // private BlockStmt getMethodBody(String className, String methodName) {
@@ -190,22 +203,12 @@ public class Analyzer {
   // return method.getBody().get();
   // }
 
-  private void parseMethod(BlockStmt blockStmt) {
-    if (blockStmt != null) {
-      this.tracker.callEntrance();
-      // TODO: add things to latest alias map
-      ASTVisitor visitor = new ASTVisitor();
-      visitor.visit(blockStmt, this.tracker);
-      this.tracker.callExit();
-    }
-  }
-
   /**
    * A private visitor class to parse AST
    */
   private class ASTVisitor implements VoidVisitor<Tracker> {
     /**
-     * Print out node info for debugging purpose
+     * Print out node info for debugging
      * 
      * @param n
      * @param indentLevel
@@ -290,12 +293,15 @@ public class Analyzer {
     @Override
     public void visit(BlockStmt n, Tracker arg) {
       printNode(n, arg.indentLevel, "");
+
       if (n.getStatements() != null) {
+        arg.indentLevel++;
+        arg.blockEntrance();
         for (final Statement s : n.getStatements()) {
-          arg.indentLevel++;
           s.accept(this, arg);
-          arg.indentLevel--;
         }
+        arg.blockExit();
+        arg.indentLevel--;
       }
     }
 
@@ -717,15 +723,11 @@ public class Analyzer {
       printNode(n, arg.indentLevel, n.toString());
       String varName = n.getNameAsString();
       String varType = n.getType().asString();
-      arg.temp = "";
       arg.indentLevel++;
+      arg.clearAccessPoint();
       n.getInitializer().ifPresent(i -> i.accept(this, arg));
+      arg.createVariable(varName, varType);
       arg.indentLevel--;
-      String refId = arg.temp;
-      if (!arg.addVar(varName, varType, refId)) {
-        arg.reporter.report(n.getBegin().get().line, n.getBegin().get().column,
-            n.getNameAsString());
-      }
     }
 
     @Override

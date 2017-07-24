@@ -8,17 +8,21 @@ import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 
+/**
+ * This class reports errors or warnings detected by Tracker
+ */
 public class Reporter {
   public static final int LEVEL_ERROR = 0;
   public static final int LEVEL_WARNING = 1;
 
-  private int level;
-  private String message;
-  private List<String> src;
+  public static List<String> src;
+  public static int level;
+  public static String message;
+  public static int lineNo;
+  public static int colNo;
+  public static String subject;
 
-  public Reporter(String srcPath) throws IOException {
-    level = 0;
-    message = "";
+  public static void initialize(String srcPath) throws IOException {
     src = new ArrayList<String>();
 
     BufferedReader br = new BufferedReader(new FileReader(srcPath));
@@ -32,23 +36,15 @@ public class Reporter {
     }
   }
 
-  public void setLevel(int level) {
-    this.level = level;
-  }
-
-  public void setMessage(String message) {
-    this.message = message;
-  }
-
-  public void report(int lineNo, int colNo, String refName) {
+  public static void report() {
     lineNo--;
     colNo--;
     for (int i = 0; i < src.size(); i++) {
       System.out.println(src.get(i));
       if (lineNo == i) {
         System.out.println(StringUtils.repeat(" ", colNo) + "^");
-        System.out.println(StringUtils.repeat(" ", colNo)
-            + (this.level == 0 ? "ERROR: " : "WARNING: ") + refName + " " + this.message + ".\n");
+        System.out.println(StringUtils.repeat(" ", colNo) + (level == 0 ? "ERROR: " : "WARNING: ")
+            + subject + " " + message + ".\n");
       }
     }
     System.exit(1);
@@ -56,9 +52,12 @@ public class Reporter {
 
   // TODO: delete this
   public static void main(String[] args) throws IOException {
-    Reporter r = new Reporter("examples/test1.java");
-    r.setLevel(Reporter.LEVEL_ERROR);
-    r.setMessage("is null");
-    r.report(2, 4, "n1.next");
+    Reporter.initialize("examples/test1.java");
+    Reporter.level = Reporter.LEVEL_ERROR;
+    Reporter.message = "Test Message";
+    Reporter.lineNo = 2;
+    Reporter.colNo = 3;
+    Reporter.subject = "n1";
+    Reporter.report();
   }
 }
