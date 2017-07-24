@@ -9,18 +9,18 @@ import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * This class reports errors or warnings detected by Tracker
+ * This class reports errors or warnings detected by Tracker. Reports two kind of errors: accessing
+ * field or call method on a null object, or accessing a delayed field which is not completed. Count
+ * the error and total number of cases for all possible states, report error or warning accordingly.
  */
 public class Reporter {
-  public static final int LEVEL_ERROR = 0;
-  public static final int LEVEL_WARNING = 1;
-
   public static List<String> src;
-  public static int level;
-  public static String message;
   public static int lineNo;
   public static int colNo;
-  public static String subject;
+  public static int null_case_error;
+  public static int null_case_total;
+  public static int delayed_case_error;
+  public static int delayed_case_total;
 
   public static void initialize(String srcPath) throws IOException {
     src = new ArrayList<String>();
@@ -35,29 +35,45 @@ public class Reporter {
       br.close();
     }
   }
-
-  public static void report() {
-    lineNo--;
-    colNo--;
-    for (int i = 0; i < src.size(); i++) {
-      System.out.println(src.get(i));
-      if (lineNo == i) {
-        System.out.println(StringUtils.repeat(" ", colNo) + "^");
-        System.out.println(StringUtils.repeat(" ", colNo) + (level == 0 ? "ERROR: " : "WARNING: ")
-            + subject + " " + message + ".\n");
-      }
-    }
-    System.exit(1);
+  
+  public static void reset() {
+    Reporter.null_case_error = 0;
+    Reporter.null_case_total = 0;
+    Reporter.delayed_case_error = 0;
+    Reporter.delayed_case_total = 0;
   }
 
-  // TODO: delete this
-  public static void main(String[] args) throws IOException {
-    Reporter.initialize("examples/test1.java");
-    Reporter.level = Reporter.LEVEL_ERROR;
-    Reporter.message = "Test Message";
-    Reporter.lineNo = 2;
-    Reporter.colNo = 3;
-    Reporter.subject = "n1";
-    Reporter.report();
+  public static void report() {
+    StringBuilder message = new StringBuilder();
+    if (Reporter.null_case_error != 0) {
+      if (Reporter.null_case_error == Reporter.null_case_total) {
+        message.append("Error: ");
+      } else {
+        message.append("Warning: maybe ");
+      }
+      message.append("accessing on a null object. ");
+    }
+    if (Reporter.delayed_case_error != 0) {
+      if (Reporter.delayed_case_error == Reporter.delayed_case_total) {
+        message.append("Error: ");
+      } else {
+        message.append("Warning: maybe ");
+      }
+      message.append("accessing on a delayed field that is not completed. ");
+    }
+
+    if (!message.toString().equals("")) {
+      lineNo--;
+      colNo--;
+      System.out.println("===========================================");
+      for (int i = 0; i < src.size(); i++) {
+        System.out.println(src.get(i));
+        if (lineNo == i) {
+          System.out.println(StringUtils.repeat(" ", colNo) + "^");
+          System.out.println(StringUtils.repeat(" ", colNo) + message.toString() + "\n");
+        }
+      }
+      System.out.println("===========================================\n");
+    }
   }
 }

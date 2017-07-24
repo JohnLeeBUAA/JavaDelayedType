@@ -12,17 +12,17 @@ public class Obj {
   public String id;
   public int refCt;
   public String type;
-  public Map<String, String> fields;
+  public Map<String, Ref> fields;
 
   public Obj(ClassDef classDef) {
     this.id = UUID.randomUUID().toString();
     this.refCt = 0;
     this.type = classDef.className;
-    this.fields = new HashMap<String, String>();
+    this.fields = new HashMap<String, Ref>();
 
     for (Entry<String, FieldDef> entry : classDef.fieldDefs.entrySet()) {
       Ref temp = new Ref(entry.getValue().fieldType, entry.getValue().isDelayedType, false, "");
-      this.fields.put(entry.getValue().fieldName, temp.id);
+      this.fields.put(entry.getValue().fieldName, temp);
     }
 
     // TODO: delete this

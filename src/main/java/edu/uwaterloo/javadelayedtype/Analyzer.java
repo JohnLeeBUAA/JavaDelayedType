@@ -275,7 +275,12 @@ public class Analyzer {
     @Override
     public void visit(AssignExpr n, Tracker arg) {
       printNode(n, arg.indentLevel, "");
-
+      arg.indentLevel++;
+      Tracker.mode = 0;
+      n.getValue().accept(this, arg);
+      Tracker.mode = 1;
+      n.getTarget().accept(this, arg);
+      arg.indentLevel--;
     }
 
     @Override
@@ -424,6 +429,7 @@ public class Analyzer {
       printNode(n, arg.indentLevel, "");
       arg.indentLevel++;
       Tracker.checkerOn = false;
+      Tracker.mode = 0;
       n.getExpression().accept(this, arg);
       arg.indentLevel--;
     }
@@ -617,6 +623,9 @@ public class Analyzer {
     @Override
     public void visit(SimpleName n, Tracker arg) {
       printNode(n, arg.indentLevel, n.getIdentifier());
+      Reporter.lineNo = n.getBegin().get().line;
+      Reporter.colNo = n.getBegin().get().column;
+      arg.accessField(n.getIdentifier());
     }
 
     @Override

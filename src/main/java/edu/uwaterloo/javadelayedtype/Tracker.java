@@ -14,15 +14,15 @@ import java.util.Queue;
 public class Tracker {
   public static boolean checkerOn; // indicating checker turn on, only turn on for user-defined
                                    // objects
-  public static boolean assignTargetMode; // indicating parsing target expression for assignment
-                                          // statements
+  public static int mode; // indicating the mode, 0 - normal, 1 - parsing target in assignment
+                          // statement, 2- parsing method arguments
   public static Map<String, ClassDef> classDefMap; // a map of class and field definitions
   public int indentLevel; // indent level for node printing, for debugging purpose
   private State state; // the current possible state, all possible states stored in a tree structure
 
   public Tracker() throws IOException {
     Tracker.checkerOn = false;
-    Tracker.assignTargetMode = false;
+    Tracker.mode = 0;
     Tracker.classDefMap = new HashMap<String, ClassDef>();
     this.indentLevel = 0;
     this.state = new State();
@@ -172,6 +172,23 @@ public class Tracker {
   }
 
   /**
+   * Clear the argument point
+   */
+  public void clearArgumentPoint() {
+    Queue<State> stateQueue = new LinkedList<>();
+    stateQueue.add(this.state);
+    while (!stateQueue.isEmpty()) {
+      State tempState = stateQueue.poll();
+      for (State state : tempState.childStateList) {
+        stateQueue.add(state);
+      }
+      if (tempState.isValid) {
+        tempState.clearArgumentPoint();
+      }
+    }
+  }
+
+  /**
    * Create an object
    */
   public void createObject(String className) {
@@ -208,15 +225,16 @@ public class Tracker {
       }
     }
   }
-  
+
   /**
    * Access a variable
+   * 
    * @param varName
    */
   public void accessVariable(String varName) {
     if (this.state.varTable.peek().peek().containsKey(varName)) {
       Tracker.checkerOn = true;
-      
+
       Queue<State> stateQueue = new LinkedList<>();
       stateQueue.add(this.state);
       while (!stateQueue.isEmpty()) {
@@ -228,9 +246,48 @@ public class Tracker {
           tempState.accessVariable(varName);
         }
       }
-    }
-    else {
+    } else {
       Tracker.checkerOn = false;
+    }
+  }
+
+  /**
+   * Access field on current access point
+   * 
+   * @param fieldName
+   */
+  public void accessField(String fieldName) {
+    if (Tracker.checkerOn) {
+      Reporter.reset();
+      Queue<State> stateQueue = new LinkedList<>();
+      stateQueue.add(this.state);
+      while (!stateQueue.isEmpty()) {
+        State tempState = stateQueue.poll();
+        for (State state : tempState.childStateList) {
+          stateQueue.add(state);
+        }
+        if (tempState.isValid) {
+          tempState.accessField(fieldName);
+        }
+      }
+      Reporter.report();
+    }
+  }
+
+  /**
+   * Access null literal
+   */
+  public void accessNull() {
+    Queue<State> stateQueue = new LinkedList<>();
+    stateQueue.add(this.state);
+    while (!stateQueue.isEmpty()) {
+      State tempState = stateQueue.poll();
+      for (State state : tempState.childStateList) {
+        stateQueue.add(state);
+      }
+      if (tempState.isValid) {
+        tempState.accessNull();
+      }
     }
   }
 }
