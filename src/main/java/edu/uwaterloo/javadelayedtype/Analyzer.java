@@ -423,6 +423,7 @@ public class Analyzer {
     public void visit(ExpressionStmt n, Tracker arg) {
       printNode(n, arg.indentLevel, "");
       arg.indentLevel++;
+      Tracker.checkerOn = false;
       n.getExpression().accept(this, arg);
       arg.indentLevel--;
     }
@@ -559,6 +560,7 @@ public class Analyzer {
     @Override
     public void visit(NameExpr n, Tracker arg) {
       printNode(n, arg.indentLevel, n.getNameAsString());
+      arg.accessVariable(n.getNameAsString());
     }
 
     @Override
@@ -583,15 +585,8 @@ public class Analyzer {
     public void visit(ObjectCreationExpr n, Tracker arg) {
       printNode(n, arg.indentLevel, n.toString());
       arg.indentLevel++;
-      n.getScope().ifPresent(s -> s.accept(this, arg));
-      n.getTypeArguments().ifPresent(tas -> tas.forEach(ta -> ta.accept(this, arg)));
-      n.getType().accept(this, arg);
-      if (n.getArguments() != null) {
-        for (final Expression e : n.getArguments()) {
-          e.accept(this, arg);
-        }
-      }
-      n.getAnonymousClassBody().ifPresent(acb -> acb.forEach(m -> m.accept(this, arg)));
+      arg.createObject(n.getType().asString());
+      // TODO: non-default constructor?
       arg.indentLevel--;
     }
 

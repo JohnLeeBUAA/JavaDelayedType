@@ -12,12 +12,16 @@ import java.util.Queue;
  * the core logic to analyze delayed type and provide API for parser
  */
 public class Tracker {
-  public static boolean assignTargetMode;
+  public static boolean checkerOn; // indicating checker turn on, only turn on for user-defined
+                                   // objects
+  public static boolean assignTargetMode; // indicating parsing target expression for assignment
+                                          // statements
   public static Map<String, ClassDef> classDefMap; // a map of class and field definitions
   public int indentLevel; // indent level for node printing, for debugging purpose
   private State state; // the current possible state, all possible states stored in a tree structure
 
   public Tracker() throws IOException {
+    Tracker.checkerOn = false;
     Tracker.assignTargetMode = false;
     Tracker.classDefMap = new HashMap<String, ClassDef>();
     this.indentLevel = 0;
@@ -202,6 +206,31 @@ public class Tracker {
           tempState.createVariable(varName, varType);
         }
       }
+    }
+  }
+  
+  /**
+   * Access a variable
+   * @param varName
+   */
+  public void accessVariable(String varName) {
+    if (this.state.varTable.peek().peek().containsKey(varName)) {
+      Tracker.checkerOn = true;
+      
+      Queue<State> stateQueue = new LinkedList<>();
+      stateQueue.add(this.state);
+      while (!stateQueue.isEmpty()) {
+        State tempState = stateQueue.poll();
+        for (State state : tempState.childStateList) {
+          stateQueue.add(state);
+        }
+        if (tempState.isValid) {
+          tempState.accessVariable(varName);
+        }
+      }
+    }
+    else {
+      Tracker.checkerOn = false;
     }
   }
 }
