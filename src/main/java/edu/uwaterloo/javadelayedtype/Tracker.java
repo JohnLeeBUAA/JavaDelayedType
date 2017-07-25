@@ -56,20 +56,6 @@ public class Tracker {
   }
 
   /**
-   * Print function for debugging TODO: delete this
-   */
-  public void printClassAndFieldDefs() {
-    for (Entry<String, ClassDef> entry : Tracker.classDefMap.entrySet()) {
-      System.out.println(entry.getKey() + "/" + entry.getValue().className);
-      for (Entry<String, FieldDef> field : entry.getValue().fieldDefs.entrySet()) {
-        System.out.println(field.getKey() + "/" + field.getValue().fieldName + "/"
-            + field.getValue().fieldType + "/" + field.getValue().isDelayedType);
-      }
-      System.out.println("\n");
-    }
-  }
-
-  /**
    * Entering a method on current state and all child states
    */
   public void methodEntrance() {
@@ -290,7 +276,7 @@ public class Tracker {
       }
     }
   }
-  
+
   /**
    * Assign Obj to Var or Ref
    */
@@ -307,4 +293,35 @@ public class Tracker {
       }
     }
   }
+
+  /**
+   * Create a new state from current state and go to new state
+   */
+  public void newStateEntrance() {
+    State newState = this.state.cloneState();
+    newState.parent = this.state;
+    this.state.childStateList.add(newState);
+    this.state = newState;
+  }
+
+  /**
+   * Create a new state from current state and go to new state. Created all possible states from
+   * current state, mark current state as invalid
+   */
+  public void newStateEntranceCloseParentState() {
+    State newState = this.state.cloneState();
+    newState.parent = this.state;
+    this.state.childStateList.add(newState);
+    this.state.isValid = false;
+    this.state = newState;
+  }
+
+  /**
+   * Exit a state and go back to parent state
+   */
+  public void newStateExit() {
+    this.state = this.state.parent;
+  }
+
+
 }

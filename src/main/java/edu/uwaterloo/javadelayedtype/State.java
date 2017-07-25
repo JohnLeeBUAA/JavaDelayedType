@@ -364,10 +364,6 @@ public class State {
               missingDelayedFields.put(fromType, tempSet);
             }
             missingDelayedFields.get(fromType).add(toType);
-
-            System.out
-                .println("\n#####\nAdding missing type from: " + fromType + "  to: " + toType);
-
           }
         }
       }
@@ -389,53 +385,52 @@ public class State {
             } else {
               tempRef.isCompleted = true;
             }
-
-
-            System.out.println("\n#####\nSetting " + tempObj.id + " " + tempRef.type + " to "
-                + tempRef.isCompleted);
           }
         }
       }
     }
   }
 
-  // TODO: delete this
-  public static void main(String[] args) {
-    State state = new State();
-
-    ClassDef classDefA = new ClassDef("A");
-    classDefA.fieldDefs.put("delayed_A", new FieldDef("delayed_A", "A", true));
-    classDefA.fieldDefs.put("delayed_B", new FieldDef("delayed_B", "B", true));
-
-    ClassDef classDefB = new ClassDef("B");
-    classDefB.fieldDefs.put("delayed_B", new FieldDef("delayed_B", "B", true));
-
-    Obj A1 = new Obj(classDefA);
-    A1.id = "A1";
-    Obj A2 = new Obj(classDefA);
-    A2.id = "A2";
-    Obj A3 = new Obj(classDefA);
-    A3.id = "A3";
-    Obj B1 = new Obj(classDefB);
-    B1.id = "B1";
-    Obj B2 = new Obj(classDefB);
-    B2.id = "B2";
-
-    A1.fields.get("delayed_A").objId = A2.id;
-    A1.fields.get("delayed_B").objId = B1.id;
-    A2.fields.get("delayed_A").objId = A3.id;
-    A2.fields.get("delayed_B").objId = B1.id;
-    A3.fields.get("delayed_A").objId = A2.id;
-    A3.fields.get("delayed_B").objId = B2.id;
-    B1.fields.get("delayed_B").objId = B2.id;
-    B2.fields.get("delayed_B").objId = B1.id;
-
-    state.objTable.put(A1.id, A1);
-    state.objTable.put(A2.id, A2);
-    state.objTable.put(A3.id, A3);
-    state.objTable.put(B1.id, B1);
-    state.objTable.put(B2.id, B2);
-
-    state.update();
+  /**
+   * Derive a state from current state
+   */
+  public State cloneState() {
+    State newState = new State();
+    if (this.accessPoint != null) {
+      newState.accessPoint = this.accessPoint.cloneObj();
+    }
+    if (this.assignPoint != null) {
+      if (this.assignPoint instanceof Var) {
+        newState.assignPoint = ((Var) this.assignPoint).cloneVar();
+      } else if (this.assignPoint instanceof Ref) {
+        newState.assignPoint = ((Ref) this.assignPoint).cloneRef();
+      }
+    }
+    for (Obj obj : this.argumentPoint) {
+      if (obj == null) {
+        newState.argumentPoint.add(null);
+      } else {
+        newState.argumentPoint.add(obj.cloneObj());
+      }
+    }
+    Iterator<Deque<Map<String, Var>>> it1 = this.varTable.descendingIterator();
+    while (it1.hasNext()) {
+      Deque<Map<String, Var>> copyFrom = it1.next();
+      Deque<Map<String, Var>> copyTo = new ArrayDeque<>();
+      Iterator<Map<String, Var>> it2 = copyFrom.descendingIterator();
+      while (it2.hasNext()) {
+        Map<String, Var> mapCopyFrom = it2.next();
+        Map<String, Var> mapCopyTo = new HashMap<>();
+        for (Entry<String, Var> varEntry : mapCopyFrom.entrySet()) {
+          mapCopyTo.put(varEntry.getKey(), varEntry.getValue().cloneVar());
+        }
+        copyTo.push(mapCopyTo);
+      }
+      newState.varTable.push(copyTo);
+    }
+    for (Entry<String, Obj> objEntry : this.objTable.entrySet()) {
+      newState.objTable.put(objEntry.getKey(), objEntry.getValue().cloneObj());
+    }
+    return newState;
   }
 }

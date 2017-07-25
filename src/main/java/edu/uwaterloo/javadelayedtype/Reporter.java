@@ -35,7 +35,7 @@ public class Reporter {
       br.close();
     }
   }
-  
+
   public static void reset() {
     Reporter.null_case_error = 0;
     Reporter.null_case_total = 0;

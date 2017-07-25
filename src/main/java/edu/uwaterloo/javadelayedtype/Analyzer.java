@@ -3,8 +3,6 @@ package edu.uwaterloo.javadelayedtype;
 import java.io.FileInputStream;
 import java.io.IOException;
 
-import org.apache.commons.lang3.StringUtils;
-
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ast.ArrayCreationLevel;
 import com.github.javaparser.ast.CompilationUnit;
@@ -114,14 +112,6 @@ public class Analyzer {
     this.tracker = new Tracker();
   }
 
-  // TODO: delete this
-  public static void main(String[] args) throws IOException {
-    String srcPath = "examples/test1.java";
-    Reporter.initialize(srcPath);
-    Analyzer analyzer = new Analyzer(srcPath);
-    analyzer.analyze();
-  }
-
   /**
    * Entrance method
    */
@@ -214,8 +204,8 @@ public class Analyzer {
      * @param info
      */
     public void printNode(Node n, int indentLevel, String info) {
-      System.out.println(
-          StringUtils.repeat('\t', indentLevel) + n.getClass().getSimpleName() + ": " + info);
+      // System.out.println(StringUtils.repeat('\t', indentLevel) + n.getClass().getSimpleName() +
+      // ": " + info);
     }
 
     @Override
@@ -464,7 +454,16 @@ public class Analyzer {
     @Override
     public void visit(IfStmt n, Tracker arg) {
       printNode(n, arg.indentLevel, "");
-
+      arg.indentLevel++;
+      arg.newStateEntrance();
+      n.getThenStmt().accept(this, arg);
+      arg.newStateExit();
+      if (n.getElseStmt().isPresent()) {
+        arg.newStateEntranceCloseParentState();
+        n.getElseStmt().get().accept(this, arg);
+        arg.newStateExit();
+      }
+      arg.indentLevel--;
     }
 
     @Override
@@ -592,7 +591,6 @@ public class Analyzer {
       printNode(n, arg.indentLevel, n.toString());
       arg.indentLevel++;
       arg.createObject(n.getType().asString());
-      // TODO: non-default constructor?
       arg.indentLevel--;
     }
 

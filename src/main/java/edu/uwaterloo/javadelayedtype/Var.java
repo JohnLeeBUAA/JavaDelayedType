@@ -8,18 +8,24 @@ public class Var {
   public String varType;
   public String objId;
 
+  public Var() {}
+
   public Var(String varName, String varType, Obj obj) {
     this.varName = varName;
     this.varType = varType;
     if (obj != null) {
       this.objId = obj.id;
       obj.refCt++;
-    }
-    else {
+    } else {
       this.objId = "";
     }
-    
-    // TODO: delete this
-    System.out.println("\nCreating variable: " + varName + " / " + varType + " / " + (obj == null ? "null" : obj.id) + "\n");
+  }
+
+  public Var cloneVar() {
+    Var newVar = new Var();
+    newVar.varName = this.varName;
+    newVar.varType = this.varType;
+    newVar.objId = this.objId;
+    return newVar;
   }
 }
