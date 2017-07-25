@@ -365,6 +365,7 @@ public class State {
     }
 
     // for each partition, perform edge counting
+    // compare actual with expected edge number is same as marking missing edges
     for (Set<Obj> partition : partitions) {
       Map<String, Set<String>> missingDelayedFields = new HashMap<>();
       Iterator<Obj> iterator = partition.iterator();
