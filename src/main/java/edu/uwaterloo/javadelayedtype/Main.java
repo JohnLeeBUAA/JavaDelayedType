@@ -7,6 +7,7 @@ import java.io.IOException;
  */
 public class Main {
   public static void main(String[] args) throws IOException {
+    String srcPath = "examples/test.java";
     // String srcPath = "examples/simple_example_bad.java";
     // String srcPath = "examples/simple_example_good.java";
     // String srcPath = "examples/multi_classes_good.java";
@@ -14,7 +15,9 @@ public class Main {
     // String srcPath = "examples/multi_classes_bad_2.java";
     // String srcPath = "examples/multi_states_uncertain.java";
     // String srcPath = "examples/multi_states_certain_bad.java";
-    String srcPath = "examples/multi_states_certain_good.java";
+    // String srcPath = "examples/multi_states_certain_good.java";
+    // String srcPath = "examples/method_call_bad.java";
+    // String srcPath = "examples/method_call_good.java";
 
     Reporter.initialize(srcPath);
     Analyzer analyzer = new Analyzer(srcPath);

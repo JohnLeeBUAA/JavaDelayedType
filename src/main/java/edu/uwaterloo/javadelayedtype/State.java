@@ -54,6 +54,22 @@ public class State {
   }
 
   /**
+   * Add arguments to varTable
+   * 
+   * @param argNames
+   * @param argTypes
+   */
+  public void methodAddArguments(List<String> argNames, List<String> argTypes) {
+    Map<String, Var> tempVarTable = new HashMap<>();
+    int index = 0;
+    for (Obj obj : this.argumentPoint) {
+      tempVarTable.put(argNames.get(index), new Var(argNames.get(index), argTypes.get(index), obj));
+      index++;
+    }
+    this.varTable.peek().push(tempVarTable);
+  }
+
+  /**
    * When entering a block, push a new variable table
    */
   public void blockEntrance() {

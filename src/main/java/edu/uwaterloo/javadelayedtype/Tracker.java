@@ -3,6 +3,7 @@ package edu.uwaterloo.javadelayedtype;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Queue;
@@ -18,7 +19,7 @@ public class Tracker {
                           // statement, 2- parsing method arguments
   public static Map<String, ClassDef> classDefMap; // a map of class and field definitions
   public int indentLevel; // indent level for node printing, for debugging purpose
-  private State state; // the current possible state, all possible states stored in a tree structure
+  public State state; // the current possible state, all possible states stored in a tree structure
 
   public Tracker() throws IOException {
     Tracker.checkerOn = false;
@@ -85,6 +86,26 @@ public class Tracker {
       }
       if (tempState.isValid) {
         tempState.methodExit();
+      }
+    }
+  }
+
+  /**
+   * Add arguments to varTable
+   * 
+   * @param argNames
+   * @param argTypes
+   */
+  public void methodAddArguments(List<String> argNames, List<String> argTypes) {
+    Queue<State> stateQueue = new LinkedList<>();
+    stateQueue.add(this.state);
+    while (!stateQueue.isEmpty()) {
+      State tempState = stateQueue.poll();
+      for (State state : tempState.childStateList) {
+        stateQueue.add(state);
+      }
+      if (tempState.isValid) {
+        tempState.methodAddArguments(argNames, argTypes);
       }
     }
   }

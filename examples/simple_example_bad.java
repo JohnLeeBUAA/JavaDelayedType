@@ -2,6 +2,7 @@ class Node {
   Node delayed_next;
 }
 
+
 public class Example {
   public static void main(String[] args) {
     Node n1 = new Node();

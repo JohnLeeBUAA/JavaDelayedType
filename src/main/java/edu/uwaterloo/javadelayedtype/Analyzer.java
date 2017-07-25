@@ -2,6 +2,12 @@ package edu.uwaterloo.javadelayedtype;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.sound.midi.Track;
+
+import org.apache.commons.lang3.StringUtils;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ast.ArrayCreationLevel;
@@ -38,6 +44,7 @@ import com.github.javaparser.ast.expr.ClassExpr;
 import com.github.javaparser.ast.expr.ConditionalExpr;
 import com.github.javaparser.ast.expr.DoubleLiteralExpr;
 import com.github.javaparser.ast.expr.EnclosedExpr;
+import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.InstanceOfExpr;
 import com.github.javaparser.ast.expr.IntegerLiteralExpr;
@@ -172,6 +179,18 @@ public class Analyzer {
   }
 
   /**
+   * Get the method declaration of a method by class name and method name
+   * 
+   * @param className
+   * @param methodName
+   * @return
+   */
+  private MethodDeclaration getMethod(String className, String methodName) {
+    ClassOrInterfaceDeclaration clazz = compilationUnit.getClassByName(className).get();
+    return clazz.getMethodsByName(methodName).get(0);
+  }
+
+  /**
    * Parse a method
    * 
    * @param method Declaration of the method
@@ -179,18 +198,22 @@ public class Analyzer {
   private void parseMethod(MethodDeclaration method) {
     if (method.getBody().get() != null) {
       this.tracker.methodEntrance();
-      // TODO: add method arguments to variable table
+      List<String> argNames = new ArrayList<>();
+      List<String> argTypes = new ArrayList<>();
+      for (Parameter p : method.getParameters()) {
+        if (Tracker.classDefMap.containsKey(p.getType().asString())) {
+          argNames.add(p.getNameAsString());
+          argTypes.add(p.getType().asString());
+        }
+      }
+      argNames.add("this");
+      argTypes.add("");
+      this.tracker.methodAddArguments(argNames, argTypes);
       ASTVisitor visitor = new ASTVisitor();
       visitor.visit(method.getBody().get(), this.tracker);
       this.tracker.methodExit();
     }
   }
-
-  // private BlockStmt getMethodBody(String className, String methodName) {
-  // ClassOrInterfaceDeclaration clazz = compilationUnit.getClassByName(className).get();
-  // MethodDeclaration method = clazz.getMethodsByName(methodName).get(0);
-  // return method.getBody().get();
-  // }
 
   /**
    * A private visitor class to parse AST
@@ -547,7 +570,23 @@ public class Analyzer {
     @Override
     public void visit(MethodCallExpr n, Tracker arg) {
       printNode(n, arg.indentLevel, "");
-
+      // System.out.println(n.getNameAsString());
+      arg.indentLevel++;
+      Tracker.mode = 2;
+      arg.clearArgumentPoint();
+      if (n.getArguments() != null) {
+        for (final Expression e : n.getArguments()) {
+          e.accept(this, arg);
+        }
+      }
+      n.getScope().ifPresent(s -> s.accept(this, arg));
+      Tracker.mode = 0;
+      // only care about functions in user-defined classes
+      if (Tracker.checkerOn) {
+        parseMethod(getMethod(arg.state.argumentPoint.get(arg.state.argumentPoint.size() - 1).type,
+            n.getNameAsString()));
+      }
+      arg.indentLevel--;
     }
 
     @Override
@@ -665,7 +704,7 @@ public class Analyzer {
     @Override
     public void visit(ThisExpr n, Tracker arg) {
       printNode(n, arg.indentLevel, "");
-
+      arg.accessVariable("this");
     }
 
     @Override
